@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>ESPRESSO-Time-Calculator-Lite(CH019)</title>
+<style>
+  :root{
+    --bg: #f1f3f6;
+    --ink: #2a2a2a;
+    --muted: #6e6e6e;
+    --panel: #ffffff;
+    --line: #d6d7db;
+    --focus: #3a7afe;
+
+    --accent-start: #d2a578; /* Pset 3.4 */
+    --accent-end:   #f77441; /* Pset 11.1 */
+
+    --temp-cold: #7973f8; /* 83℃ */
+    --temp-hot:  #ff6e51; /* 94℃ */
+     
+    --circle-text-offset-x: 0px;
+    --circle-text-offset-y: 0px; 
+
+    --phi-left:  #ffae0d;
+    --phi-cyan:  #82e7d1;
+    --phi-right: #ff99e3;
+
+    --radius: 14px;
+    --radius-lg: 28px;
+    --shadow: 0 1px 0 rgba(0,0,0,.06), 0 12px 24px rgba(0,0,0,.06);
+
+    --gap: 32px;
+    --col-gap: clamp(16px, 3vw, 32px);
+    --input-h: 46px;
+
+    --circle-size: min(68vmin, 640px);
+    --circle-d: var(--circle-size);
+
+    --phi-H-pos: 24.75%;
+    --phi-B-pos: 38.4%;
+    --phi-mid-pos: calc((var(--phi-H-pos) + var(--phi-B-pos, var(--phi-H-pos))) / 2);
+
+    --thumb-size: 30px;
+
+    /* --circle-guard: 0.8; */
+  }
+
+  *{ box-sizing:border-box; min-width:0; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:
+      "Rockwell",
+      "Roboto Slab",
+      "Noto Serif",
+      "Source Serif 4",
+      "Merriweather",
+      Georgia,
+      "Times New Roman",
+      "Noto Serif SC",
+      "Source Han Serif SC",
+      ui-serif, serif;
+    line-height:1.35;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .container{
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: clamp(16px, 3vw, 28px);
+    display:grid;
+    grid-template-columns: minmax(520px, 640px) 1fr;
+    gap: var(--col-gap);
+  }
+
+  .disclaimer{
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: clamp(12px, 1.6vw, 14px);
+  }
+
+  .panel{
+    display:grid;
+    grid-template-columns: 1fr;
+    align-content:start;
+    gap: var(--gap);
+  }
+
+  .form{
+    display:grid;
+    grid-template-columns:
+      max-content
+      minmax(260px, 1fr)
+      minmax(180px, 240px);
+    column-gap: var(--gap);
+    row-gap: var(--gap);
+    align-items:center;
+  }
+
+  .label{
+    font-size: clamp(18px, 2vw, 22px);
+    font-weight: 700;
+    letter-spacing: .3px;
+  }
+  .unit-inline{ font-size: clamp(10px, 1.5vw, 16px); color:#6b6b6b; }
+
+  .control{ position:relative; height: var(--input-h); }
+  input[type="number"],
+  input[type="text"],
+  select{
+    width:100%; height:100%;
+    border: 2px solid #bfc3c8;
+    border-radius: var(--radius);
+    background: var(--panel);
+    font-size: clamp(18px, 2.4vw, 22px);
+    padding: 0 14px;
+    color: var(--ink);
+    outline:none;
+    box-shadow: 0 2px 0 rgba(0,0,0,.05);
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  input[type="number"]{ -moz-appearance:textfield; }
+  select{ -webkit-appearance:none; appearance:none; padding-right: 42px; }
+  .control.select::after{
+    content:"";
+    position:absolute; right: 12px; top: 50%;
+    width: 12px; height: 12px; transform: translateY(-50%) rotate(45deg);
+    border-right: 3px solid #646a73; border-bottom: 3px solid #646a73; pointer-events:none;
+  }
+  input:focus, select:focus{
+    border-color: var(--focus);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 20%, transparent);
+  }
+
+  .cell-beans-label{ grid-column: 1; grid-row: 1; }
+  .cell-beans-ctrl { grid-column: 2 / 4; grid-row: 1; }
+
+  .cell-agtron-label{ grid-column: 1; grid-row: 2; }
+  .cell-agtron-ctrl { grid-column: 2; grid-row: 2; }
+
+  .cell-dose-label  { grid-column: 1; grid-row: 3; }
+  .cell-dose-ctrl   { grid-column: 2; grid-row: 3; }
+
+  .cell-pset-label  { grid-column: 1; grid-row: 4; }
+  .cell-pset-ctrl   { grid-column: 2; grid-row: 4; }
+
+  .temp-card{
+    grid-column: 3;
+    grid-row: 2 / 5;
+    background: #7973f8;
+    border-radius: var(--radius-lg);
+    width: 100%; height: 100%;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; box-shadow: var(--shadow);
+    min-height: 0;
+  }
+  .temp-card .value{ font-size: clamp(42px, 5vw, 66px); font-weight: 800; }
+  .temp-card .unit{ font-size: calc(clamp(42px, 5vw, 66px) * .7); margin-left: 6px; font-weight: 700; opacity:.95; }
+
+  .phi-block{
+    grid-column: 1 / 4;
+    height: calc(var(--input-h) * 2);
+    display:grid;
+    grid-template-rows: min-content 1fr min-content;
+    align-items:center;
+  }
+  .phi-head{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 2px; gap: 12px; }
+  .phi-title{ display:flex; align-items:center; gap:10px; color:#7a7f8c; font-size: clamp(15px, 2vw, 18px); }
+  .phi-title .diamond{
+    display:inline-grid; place-items:center;
+    width: 22px; height:22px; border:2px solid #8e92a1; transform: rotate(45deg); border-radius:4px;
+  }
+  .phi-title .diamond span{ transform: rotate(-45deg); font-weight:700; font-size: 14px; color:#8e92a1; }
+  .phi-value{ color:#6b6b6b; font-size: clamp(15px, 2vw, 18px); }
+
+  .range-wrap{ position:relative; height: 36px; }
+  .rail{
+    position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+    height: 24px; border-radius: 999px;
+background: linear-gradient(90deg,
+  var(--phi-left) 0%,
+  color-mix(in srgb, var(--phi-left) 50%, var(--phi-cyan) 50%)
+    clamp(0%, calc(var(--phi-mid-pos) - 22%), 100%),
+  var(--phi-cyan) var(--phi-mid-pos), /* 青色峰值锚在中点 */
+  color-mix(in srgb, var(--phi-cyan) 50%, var(--phi-right) 50%)
+    clamp(0%, calc(var(--phi-mid-pos) + 18%), 100%),
+  var(--phi-right) 100%
+);
+    box-shadow: inset 0 0 0 2px #bfc3c8, 0 1px 0 rgba(0,0,0,.05);
+  }
+
+  input[type="range"]{
+    position:relative; width:100%; height: 36px; margin:0;
+    -webkit-appearance:none; background: transparent; outline:none;
+  }
+  input[type="range"]::-webkit-slider-runnable-track{ height:36px; background:transparent; }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width: var(--thumb-size); height: var(--thumb-size);
+    border-radius: 6px;
+    background: #8e92a1; border: 3px solid #ffffff;
+    box-shadow: 0 0 0 3px #8e92a1, 0 4px 10px rgba(0,0,0,.12);
+    transform: rotate(45deg);
+    margin-top: -6px;
+  }
+  input[type="range"]::-moz-range-track{ height: 12px; background: transparent; }
+  input[type="range"]::-moz-range-thumb{
+    width: var(--thumb-size); height: var(--thumb-size);
+    background: #8e92a1; border: 3px solid #ffffff; border-radius: 6px;
+    box-shadow: 0 0 0 3px #8e92a1, 0 4px 10px rgba(0,0,0,.12);
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  }
+
+  .phi-scale{ position:relative; margin-top: 2px; height: 22px; }
+  .phi-scale .edge,
+  .phi-scale .mark-H,
+  .phi-scale .mark-B{
+   font-size: clamp(18px, 2.5vw, 24px);
+   color:#5b5b5b;
+  }
+  .phi-scale .edge{ position:absolute; top:0; }
+  .phi-scale .edge.left{ left:0; }
+  .phi-scale .edge.right{ right:0; }
+  .phi-scale .mark-H{
+    position:absolute; top:0; left: var(--phi-H-pos);
+    transform: translateX(-50%); font-weight: 600;
+  }
+  .phi-scale .mark-B{
+   position:absolute;top:0;left: var(--phi-B-pos);
+   transform: translateX(-50%);font-weight: 600;
+  }
+
+  .calib-block{
+    grid-column: 1 / 4;
+    height: calc(var(--input-h) * 3);
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(180px, 240px);
+    grid-template-rows: auto 1fr;
+    column-gap: var(--gap);
+    row-gap: 0;
+    align-items: stretch;
+  }
+  .calib-title{ grid-column: 1 / 4; grid-row: 1; font-size: clamp(18px, 2vw, 24px); margin: 0 0 4px 0; font-weight: 700; }
+  .calib-field{ display:flex; flex-direction:column; justify-content:flex-end; }
+  .label-sub{ font-size: clamp(10px, 1.5vw, 14px); color: var(--muted); margin-bottom: 6px; }
+
+  .btn{
+    border-radius: 24px; border: 3px dashed #8e92a1; background: transparent;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-weight: 700; font-size: clamp(18px, 2.5vw, 24px); cursor:pointer;
+  }
+  .btn:active{ transform: translateY(1px); }
+  .btn-calib{ grid-column: 4; grid-row: 1 / span 2; width: 100%; height: 100%; display:grid; place-items:center; }
+
+  .readout{ position: relative; min-height: 200px; }
+  .circle{
+    position: absolute;
+    left: 0; top: 0;
+    width: var(--circle-size);
+    height: var(--circle-size);
+    border-radius: 70%;
+    background: #d2a578;
+    color:#fff;
+    box-shadow: var(--shadow);
+    padding: 0;
+  }
+  .circle-inner{
+    position: absolute;
+    top:  calc(60% + var(--circle-text-offset-y));
+    left: calc(50% + var(--circle-text-offset-x));
+    transform: translate(-50%, -50%);
+    display:grid; grid-auto-rows: min-content;
+    justify-items:center; text-align:center;
+    row-gap: calc(var(--gap) / 2);
+    white-space: nowrap;
+  }
+  .eps{
+    font-weight: 700; opacity:.95;
+    font-size: clamp(20px, 3.2vw, 26px);
+  }
+  .time{
+    font-weight: 800; line-height: 1; letter-spacing: .02em;
+    font-size: clamp(68px, 11vw, 180px);
+  }
+  .time .unit{
+    font-weight: 800; margin-left: .05em; vertical-align: baseline;
+    font-size: 0.5em;
+  }
+  .yield{
+    font-weight:700; opacity:.95;
+    font-size: clamp(32px, 8vw, 84px);
+  }
+  .yield .yg{
+    font-size: 0.5em;
+  }
+
+  .tip{
+    grid-column: 1 / -1; color:#814600; background:#fff4d6; border:1px solid #f1d199;
+    padding:10px 12px; border-radius:10px; font-size: clamp(13px, 1.8vw, 15px); display:none;
+  }
+  .tip.show{ display:block; }
+  .credit{ grid-column: 2 / 3; justify-self:end; color:#8a8f98; font-size: clamp(13px, 1.8vw, 15px); margin-top: 8px; }
+
+  @media (max-width: 980px){
+    .container{ grid-template-columns: 1fr; }
+    .credit{ grid-column: 1 / -1; justify-self:end; }
+    :root{ --circle-size: min(84vmin, 520px); }
+    .circle{ position: relative; margin: 0 auto; }
+    .readout{ min-height: 0; }
+  }
+  @media (max-width: 720px){
+    .form{ grid-template-columns: max-content 1fr; }
+    .temp-card{ grid-column: 1 / -1; grid-row: auto; height: auto; min-height: 120px; }
+    .phi-block{ grid-column: 1 / -1; }
+    .calib-block{
+      grid-column: 1 / -1; height: auto;
+      grid-template-columns: 1fr; grid-template-rows: auto auto auto auto;
+      row-gap: var(--gap);
+    }
+    .btn-calib{ grid-column: 1; grid-row: 4; height: calc(var(--input-h)*2); }
+  }
+</style>
+</head>
+<body>
+  <main class="container" role="main">
+    <p class="disclaimer">
+      This program's computational method is a simplified version of a fully-fledged fluid dynamics simulation engine.
+      As it is a simplified model, corresponding limitations have been imposed on the applicable range of calculations.
+    </p>
+
+    <section class="panel" aria-label="参数输入">
+      <div class="form">
+        <label class="label cell-beans-label" for="beans">咖啡豆种</label>
+        <div class="control select cell-beans-ctrl">
+<select id="beans">
+  <option value="" selected disabled>请选择豆种</option>
+  <option value="Geisha">瑰夏</option>
+  <option value="Ethiopian (e.g.74158)">埃塞俄比亚 (e.g.74158)</option>
+  <option value="SL28 &amp; SL34">肯尼亚SL28 &amp; SL34</option>
+  <option value="Ethiopian Heirloom">埃塞俄比亚原生种</option>
+  <option value="Typica">铁皮卡</option>
+  <option value="Bourbon">波旁</option>
+  <option value="Bourbon Pointu">尖身波旁</option>
+  <option value="Caturra">卡杜拉</option>
+  <option value="Catimor">卡蒂姆</option>
+</select>
+        </div>
+
+        <label class="label cell-agtron-label" for="agtron">烘焙色值</label>
+        <div class="control cell-agtron-ctrl">
+          <input id="agtron" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="40--100(整数)" />
+        </div>
+
+        <label class="label cell-dose-label" for="dose">用粉重量 <span class="unit-inline">(g)</span></label>
+        <div class="control cell-dose-ctrl">
+          <input id="dose" type="number" inputmode="decimal" placeholder="15--23，步进 0.1" />
+        </div>
+
+        <label class="label cell-pset-label" for="pset">压力设定 <span class="unit-inline">(bar)</span></label>
+        <div class="control cell-pset-ctrl">
+          <input id="pset" type="number" inputmode="decimal" placeholder="3.4--11.1，步进 0.1" />
+        </div>
+
+        <aside class="temp-card" aria-live="polite">
+          <div><span class="value" id="tempVal">--</span><span class="unit">℃</span></div>
+        </aside>
+
+        <div class="phi-block">
+          <div class="phi-head">
+            <div class="phi-title">
+              <span class="diamond"><span>φ</span></span>
+              <span>滑动系数</span>
+            </div>
+            <div class="phi-value" id="phiText">φ = 0.360</div>
+          </div>
+          <div class="range-wrap" id="phiWrap">
+            <div class="rail" aria-hidden="true"></div>
+            <input id="phi" type="range" min="0.28" max="0.618" step="0.001" value="0.36" aria-label="φ 滑动系数" />
+          </div>
+          <div class="phi-scale" aria-hidden="true">
+            <span class="edge left">传统</span>
+            <span class="mark-H">H</span>
+            <span class="mark-B">B</span>
+            <span class="edge right">现代</span>
+          </div>
+        </div>
+
+        <div class="calib-block" aria-label="机器校准模块">
+          <h2 class="calib-title">咖啡机[压力-空放水流速]三点校准</h2>
+
+          <div class="calib-field" style="grid-column:1; grid-row:2;">
+            <div class="label-sub">Q_open/3bar</div>
+            <div class="control"><input id="q3" type="number" inputmode="decimal" placeholder="g/s" /></div>
+          </div>
+
+          <div class="calib-field" style="grid-column:2; grid-row:2;">
+            <div class="label-sub">Q_open/7bar</div>
+            <div class="control"><input id="q7" type="number" inputmode="decimal" placeholder="g/s" /></div>
+          </div>
+
+          <div class="calib-field" style="grid-column:3; grid-row:2;">
+            <div class="label-sub">Q_open/11bar</div>
+            <div class="control"><input id="q11" type="number" inputmode="decimal" placeholder="g/s" /></div>
+          </div>
+
+          <button class="btn btn-calib" id="save">校准 &amp; 保存</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="readout" aria-label="建议时间与产出">
+      <div class="circle" id="circle" style="--circle-d: var(--circle-size);">
+        <div class="circle-inner" id="circleInner">
+          <div class="eps" id="epsText">0.28&lt; ε-Hole(mm) &lt;0.36</div>
+          <div class="time" id="timeWrap"><span id="timeVal">--</span><span class="unit">s</span></div>
+          <div class="yield" id="yieldWrap"><span id="yieldVal">--</span><span class="yg">g</span></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="tip" id="tip">
+      提示：当前 Agtron 超出 CSV 推荐区间(40--100)，按边界值估算温度与基础 Ratio。
+    </div>
+
+    <div class="credit">@ Harrison Blake</div>
+  </main>
+
+<script>
+const $ = (sel)=>document.querySelector(sel);
+function setText(sel, val){
+  const el = document.querySelector(sel);
+  if(el) el.textContent = val;
+}
+
+/* 旧 Safari 兼容 .at */
+if(!Array.prototype.at){
+  Array.prototype.at = function(n){
+    n = Math.trunc(n) || 0;
+    if(n < 0) n += this.length;
+    return this[n];
+  };
+}
+
+/* CSV 锚点 */
+const ANCHORS = [
+  {a:42.5, T:80, R:1.0},
+  {a:47.5, T:82, R:1.2},
+  {a:52.5, T:84, R:1.4},
+  {a:57.5, T:86, R:1.6},
+  {a:62.5, T:87, R:1.7},
+  {a:67.5, T:88, R:1.8},
+  {a:72.5, T:89, R:1.9},
+  {a:77.5, T:90, R:2.0},
+  {a:82.5, T:91, R:2.1},
+  {a:87.5, T:92, R:2.2},
+  {a:92.5, T:93, R:2.4},
+  {a:97.5, T:94, R:2.6}
+];
+
+const BEAN_RATIO_OFFSET = new Map([
+  ['Geisha',                    0.10],
+  ['Ethiopian (e.g.74158)',     0.08],
+  ['SL28 & SL34',               0.06],
+  ['Ethiopian Heirloom',        0.00],
+  ['Typica',                   -0.04],
+  ['Bourbon',                  -0.02],
+  ['Bourbon Pointu',            0.04],
+  ['Caturra',                  -0.06],
+  ['Catimor',                  -0.10]
+]);
+
+const A_MIN=40, A_MAX=100;
+const P_MIN=3.4, P_MAX=11.1;
+const D_MIN=15,  D_MAX=23;
+const PHI_MIN=0.28, PHI_MAX=0.618;
+const QOPEN_MIN=0.5, QOPEN_MAX=40; // g/s
+
+const state = {
+  beans: '',
+  agtron: null,
+  dose: null,
+  pset: null,
+  phi: 0.36,
+  calibPts: null
+};
+
+/* 工具 */
+function clamp(v,min,max){ return Math.min(max, Math.max(min,v)); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function hexToRGB(hex){ const s=hex.replace('#',''); const v=s.length===3?s.split('').map(c=>c+c).join(''):s; const n=parseInt(v,16); return {r:(n>>16)&255,g:(n>>8)&255,b:n&255}; }
+function lerpColor(hex1,hex2,t){ const c1=hexToRGB(hex1),c2=hexToRGB(hex2); const r=Math.round(lerp(c1.r,c2.r,t)); const g=Math.round(lerp(c1.g,c2.g,t)); const b=Math.round(lerp(c1.b,c2.b,t)); return `rgb(${r}, ${g}, ${b})`; }
+
+/* 计算 */
+function interpTR(agtron){
+  const xs=ANCHORS.map(o=>o.a), Ts=ANCHORS.map(o=>o.T), Rs=ANCHORS.map(o=>o.R);
+  const A=clamp(agtron, A_MIN, A_MAX);
+  if(A<=xs[0]) return {T:Ts[0], R:Rs[0]};
+  if(A>=xs.at(-1)) return {T:Ts.at(-1), R:Rs.at(-1)};
+  let i=0; while(i<xs.length-1 && !(A>=xs[i] && A<=xs[i+1])) i++;
+  const t=(A-xs[i])/(xs[i+1]-xs[i]);
+  return {T:lerp(Ts[i],Ts[i+1],t), R:lerp(Rs[i],Rs[i+1],t)};
+}
+function adjustRatioByBean(r, bean){
+  const key = (bean || '').trim();
+  return r + (BEAN_RATIO_OFFSET.get(key) || 0);
+}
+function epsilonRange(agtron){
+  const A=clamp(agtron, A_MIN, A_MAX);
+  const t=(A-A_MIN)/(A_MAX-A_MIN);
+  const center=lerp(0.36, 0.16, t);
+  const low=center-0.04, high=center+0.04;
+  return { low:+low.toFixed(2), high:+high.toFixed(2) };
+}
+function fitCurve(points){
+  const [p0,p1,p2]=points;
+  const den0=(p0.x-p1.x)*(p0.x-p2.x);
+  const den1=(p1.x-p0.x)*(p1.x-p2.x);
+  const den2=(p2.x-p0.x)*(p2.x-p1.x);
+  return function f(x){
+    const L0=((x-p1.x)*(x-p2.x))/den0;
+    const L1=((x-p0.x)*(x-p2.x))/den1;
+    const L2=((x-p0.x)*(x-p1.x))/den2;
+    return Math.max(0, p0.y*L0 + p1.y*L1 + p2.y*L2);
+  };
+}
+
+/* sqrt 模型拟合 Q_open（减少弯折） */
+function fitQOpenSqrtModel(points){
+  const s = points.map(p => Math.sqrt(p.x));
+  const p = points.map(p => p.x);
+  const y = points.map(p => p.y);
+
+  const S11 = s.reduce((acc,si)=>acc + si*si, 0);
+  const S12 = s.reduce((acc,si,i)=>acc + si*p[i], 0);
+  const S22 = p.reduce((acc,pi)=>acc + pi*pi, 0);
+  const rhs1 = s.reduce((acc,si,i)=>acc + si*y[i], 0);
+  const rhs2 = p.reduce((acc,pi,i)=>acc + pi*y[i], 0);
+
+  const det = S11*S22 - S12*S12;
+  let k, b;
+
+  if(Math.abs(det) < 1e-8){
+    const i0 = 0, i1 = points.length - 1;
+    const s0 = s[i0], s1 = s[i1], p0 = p[i0], p1 = p[i1], y0 = y[i0], y1 = y[i1];
+    const det2 = s0*p1 - s1*p0;
+    if(Math.abs(det2) < 1e-8){
+      k = 0; b = (p1 !== 0) ? y1/p1 : 0;
+    }else{
+      k = (y0*p1 - y1*p0)/det2;
+      b = (s0*y1 - s1*y0)/det2;
+    }
+  }else{
+    k = (rhs1*S22 - rhs2*S12)/det;
+    b = (S11*rhs2 - S12*rhs1)/det;
+  }
+
+  if(!Number.isFinite(k)) k = 0;
+  if(!Number.isFinite(b)) b = 0;
+  k = Math.max(0, k);
+  b = Math.max(0, b);
+
+  return function fQ(P){
+    const val = k*Math.sqrt(P) + b*P;
+    return Math.max(0, val);
+  };
+}
+
+/* ========== MOD-PHI：Agtron → φ 偏移函数（线性） ========== */
+const PHI_OFF_A0 = 92;       // A=92 → offset=0
+const PHI_OFF_A1 = 40;       // A=40 → offset=-0.0558
+const PHI_OFF_V1 = -0.0346;  // offset at A1
+function phiOffsetFromAgtron(A){
+  if(!Number.isFinite(A)) return 0; // 未填 Agtron 时不偏移
+  const Ac = clamp(A, A_MIN, A_MAX);
+  const denom = (PHI_OFF_A0 - PHI_OFF_A1);
+  if(Math.abs(denom) < 1e-8) return 0; // 防御：避免除零
+  const m = (0 - PHI_OFF_V1) / denom;  // 斜率：0 - (-0.0346) / (92-40)
+  const offset = m * (Ac - PHI_OFF_A0);
+  return offset;
+  // 若不希望 A>92 时 offset 为正，可改为：
+  // return Math.min(0, offset);
+}
+
+/* 恢复校准 */
+(function restoreCalib(){
+  try{
+    const saved=JSON.parse(localStorage.getItem('h004-calib-pts')||'null');
+    if(saved && Array.isArray(saved) && saved.length===3){
+      state.calibPts=saved;
+      if($('#q3')) $('#q3').value=saved[0].y;
+      if($('#q7')) $('#q7').value=saved[1].y;
+      if($('#q11')) $('#q11').value=saved[2].y;
+    }
+  }catch(e){}
+})();
+
+/* φ 滑条初始化 + 双击回到 H 点 */
+(function initPhi(){
+  const phi=$('#phi');
+  if(phi){
+    phi.min=String(PHI_MIN);
+    phi.max=String(PHI_MAX);
+    phi.step='0.001';
+    phi.value='0.36';
+    state.phi=0.36;
+    setText('#phiText', `φ = ${state.phi.toFixed(3)}`);
+    phi.addEventListener('dblclick', ()=>{
+      const H=0.36;
+      phi.value=String(H);
+      state.phi=H;
+      setText('#phiText', `φ = ${state.phi.toFixed(3)}`);
+      phi.dispatchEvent(new Event('input', {bubbles:true}));
+    });
+  }
+})();
+
+/* 读取校准输入框 */
+function getCalibFromInputs(){
+  const q3El=$('#q3'), q7El=$('#q7'), q11El=$('#q11');
+  if(!q3El || !q7El || !q11El) return null;
+  const q3=parseFloat(q3El.value), q7=parseFloat(q7El.value), q11=parseFloat(q11El.value);
+  if([q3,q7,q11].every(Number.isFinite)){
+    return [{x:3,y:q3},{x:7,y:q7},{x:11,y:q11}];
+  }
+  return null;
+}
+
+/* 事件绑定 */
+if($('#beans')) $('#beans').addEventListener('change', e=>{ state.beans=e.target.value; render(); });
+
+if($('#agtron')){
+  $('#agtron').addEventListener('input', e=>{
+    const v=e.target.value.trim();
+    state.agtron = v==='' ? null : parseInt(v,10);
+    render();
+  });
+  $('#agtron').addEventListener('change', e=>{
+    if(e.target.value==='') return;
+    let n=parseInt(e.target.value,10);
+    if(Number.isNaN(n)) n='';
+    else n=clamp(Math.round(n), 40, 100); // 修正 4→40
+    e.target.value=n; state.agtron=n; render();
+  });
+}
+
+if($('#dose')){
+  $('#dose').addEventListener('input', e=>{
+    const n=parseFloat(e.target.value);
+    state.dose=Number.isFinite(n)?n:null; render();
+  });
+  $('#dose').addEventListener('change', e=>{
+    if(e.target.value==='') return;
+    let n=parseFloat(e.target.value);
+    if(!Number.isFinite(n)) n='';
+    else n=clamp(Math.round(n*10)/10, D_MIN, D_MAX).toFixed(1);
+    e.target.value=n; state.dose=parseFloat(n); render();
+  });
+}
+
+if($('#pset')){
+  $('#pset').addEventListener('input', e=>{
+    const n=parseFloat(e.target.value);
+    state.pset=Number.isFinite(n)?n:null; render();
+  });
+  $('#pset').addEventListener('change', e=>{
+    if(e.target.value==='') return;
+    let n=parseFloat(e.target.value);
+    if(!Number.isFinite(n)) n='';
+    else n=clamp(Math.round(n*10)/10, P_MIN, P_MAX).toFixed(1);
+    e.target.value=n; state.pset=parseFloat(n); render();
+  });
+}
+
+if($('#phi')){
+  $('#phi').addEventListener('input', e=>{
+    state.phi=parseFloat(e.target.value)||0.36;
+    setText('#phiText', `φ = ${state.phi.toFixed(3)}`);
+    render();
+  });
+}
+
+/* 校准输入框实时重算 */
+['#q3','#q7','#q11'].forEach(sel=>{
+  const el=document.querySelector(sel);
+  if(el) el.addEventListener('input', ()=>{ render(); });
+});
+
+/* 大圆布局 */
+function layoutCircle(){
+  const beans = $('#beans');
+  const save  = $('#save');
+  const readout = document.querySelector('.readout');
+  const panel = document.querySelector('.panel');
+  const circle  = $('#circle');
+  if(!beans || !save || !readout || !panel || !circle) return;
+
+  const twoCol = window.matchMedia('(min-width: 981px)').matches;
+  if(!twoCol){
+    circle.style.position = 'relative';
+    circle.style.left=''; circle.style.top='';
+    circle.style.margin='0 auto';
+    circle.style.width = ''; circle.style.height='';
+    circle.style.setProperty('--circle-d','');
+    readout.style.minHeight='0';
+    return;
+  }else{
+    circle.style.position = 'absolute';
+    circle.style.margin='0';
+  }
+
+  const beansRect = beans.getBoundingClientRect();
+  const saveRect  = save.getBoundingClientRect();
+  const readRect  = readout.getBoundingClientRect();
+  const panelRect = panel.getBoundingClientRect();
+
+  const diameter = Math.max(160, saveRect.bottom - beansRect.top);
+  const topOffset = Math.max(0, beansRect.top - readRect.top);
+
+  const actualGap = Math.max(0, readRect.left - panelRect.right);
+  const inputH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--input-h')) || 46;
+
+  const leftOffset = Math.max(0, inputH - actualGap); // 防负偏移
+
+  circle.style.top  = `${topOffset}px`;
+  circle.style.left = `${leftOffset}px`;
+  circle.style.width = `${diameter}px`;
+  circle.style.height = `${diameter}px`;
+  circle.style.setProperty('--circle-d', `${diameter}px`);
+  readout.style.minHeight = `${topOffset + diameter}px`;
+}
+
+/* 圆内文字自适应 */
+function fitCircleText(){
+  const circle = $('#circle');
+  const inner  = $('#circleInner');
+  const epsEl  = $('#epsText');
+  const timeWrap = $('#timeWrap');
+  const yieldWrap = $('#yieldWrap');
+  if(!circle || !inner || !epsEl || !timeWrap || !yieldWrap) return;
+
+  const D = circle.getBoundingClientRect().width;
+  if(!D) return;
+
+  const guardProp = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--circle-guard'));
+  const guardRatio = Number.isFinite(guardProp) ? guardProp : 0.9;
+  const guard = D * guardRatio;
+
+  const gap = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gap')) || 32) / 2;
+
+  inner.style.transform = 'translate(-50%, -50%)';
+  const r1=epsEl.getBoundingClientRect(), r2=timeWrap.getBoundingClientRect(), r3=yieldWrap.getBoundingClientRect();
+  const maxW = Math.max(r1.width, r2.width, r3.width);
+  const totalH = r1.height + gap + r2.height + gap + r3.height;
+
+  const scale = Math.min(1, guard/maxW, guard/totalH);
+  const delta = (r1.height - r3.height)/2;
+  inner.style.transform = `translate(-50%, -50%) translateY(${delta}px) scale(${scale})`;
+}
+
+/* 渲染 */
+function render(){
+  const tempBox=document.querySelector('.temp-card');
+  const circle=$('#circle');
+  const tip=$('#tip');
+
+  let A=state.agtron;
+  let showTip=false;
+
+  if(A!=null){
+    if(A<40 || A>100) showTip=true;
+
+    const {T,R}=interpTR(A);
+    const ratioAdj=adjustRatioByBean(R, state.beans||'');
+
+    setText('#tempVal', Math.round(T));
+    if(tempBox){
+      const t=Math.min(1, Math.max(0, (T-78)/(94-78)));
+      tempBox.style.backgroundColor = lerpColor('#7973f8', '#ff6e51', t);
+    }
+
+    const eps=epsilonRange(A);
+    setText('#epsText', `${eps.low.toFixed(2)}< 粉碗孔径(mm) <${eps.high.toFixed(2)}`);
+
+    if(circle && Number.isFinite(state.pset)){
+      const t2=Math.min(1, Math.max(0, (state.pset-3.4)/(11.1-3.4)));
+      circle.style.backgroundColor = lerpColor('#d2a578', '#613b16', t2);
+    }
+
+    let calib = getCalibFromInputs();
+    if(!calib && state.calibPts && state.calibPts.length===3) calib = state.calibPts;
+
+    const ready = state.beans &&
+                  Number.isFinite(state.dose) &&
+                  Number.isFinite(state.pset) &&
+                  Number.isFinite(state.phi) &&
+                  Array.isArray(calib);
+
+    if(ready){
+      const fQ = fitQOpenSqrtModel(calib);
+      const P = clamp(state.pset, P_MIN, P_MAX);
+      let Qopen = fQ(P);
+      const QopenSafe = clamp(Qopen, QOPEN_MIN, QOPEN_MAX);
+
+      /* ========== MOD-PHI：计算“净 φ”并钳位到合法范围 ========== */
+      const phiOffset = phiOffsetFromAgtron(A);
+      const phiEff = clamp(state.phi + phiOffset, PHI_MIN, PHI_MAX);
+
+      const dose=state.dose, ratio=ratioAdj;
+      const time = (dose * ratio) / (phiEff * (QopenSafe/2))+(dose * (1.926/QopenSafe));
+      const yieldG = dose * ratio;
+
+      setText('#timeVal',  Number.isFinite(time) ? Math.max(0,time).toFixed(1) : '—');
+      setText('#yieldVal', Number.isFinite(yieldG) ? yieldG.toFixed(1) : '—');
+
+      if(circle) circle.removeAttribute('aria-label');
+    }else{
+      setText('#timeVal','--');
+      setText('#yieldVal','--');
+      if(circle) circle.setAttribute('aria-label','请先完成校准并输入参数。');
+    }
+  }else{
+    setText('#tempVal','--');
+    setText('#epsText','--< 粉碗孔径(mm) <--');
+    setText('#timeVal','--');
+    setText('#yieldVal','--');
+  }
+
+  if(tip) tip.classList.toggle('show', !!showTip);
+
+  layoutCircle();
+  requestAnimationFrame(()=>fitCircleText());
+}
+
+/* 保存校准 */
+if($('#save')) $('#save').addEventListener('click', ()=>{
+  const q3=parseFloat($('#q3')?.value);
+  const q7=parseFloat($('#q7')?.value);
+  const q11=parseFloat($('#q11')?.value);
+  if(![q3,q7,q11].every(Number.isFinite)){
+    alert('请完整输入 3bar / 7bar / 11bar 的空放水流速（g/s）。');
+    return;
+  }
+  state.calibPts=[{x:3,y:q3},{x:7,y:q7},{x:11,y:q11}];
+  localStorage.setItem('h004-calib-pts', JSON.stringify(state.calibPts));
+  render();
+});
+
+/* 监听布局变化 */
+window.addEventListener('resize', ()=>{ layoutCircle(); fitCircleText(); });
+if(window.ResizeObserver){
+  const ro = new ResizeObserver(()=>{ layoutCircle(); fitCircleText(); });
+  ro.observe(document.body);
+}
+
+/* 首次渲染 */
+render();
+</script>
+</body>
+</html>
